@@ -53,18 +53,6 @@ variable "firewall_service_endpoints" {
   ]
 }
 
-variable "firewall_config" {
-  description = "Manages an Azure Firewall configuration"
-  type = object({
-    name              = string
-    sku_name          = optional(string)
-    sku_tier          = optional(string)
-    dns_servers       = optional(list(string))
-    private_ip_ranges = optional(list(string))
-    threat_intel_mode = optional(string)
-    zones             = optional(list(string))
-  })
-}
 
 variable "enable_forced_tunneling" {
   description = "Route all Internet-bound traffic to a designated next hop instead of going directly to the Internet"
