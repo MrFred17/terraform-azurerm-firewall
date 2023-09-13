@@ -72,49 +72,46 @@ resource "azurerm_subnet" "fw-mgnt-snet" {
 # Public IP resources for Azure Firewall
 #------------------------------------------
 resource "azurerm_public_ip_prefix" "fw-pref" {
-  name                = lower("${var.firewall_config.name}-pip-prefix")
+  name                = lower("${var.firewall_name}-pip-prefix")
   resource_group_name = local.resource_group_name
   location            = local.location
   prefix_length       = var.public_ip_prefix_length
-  tags                = merge({ "ResourceName" = lower("${var.firewall_config.name}-pip-prefix") }, var.tags, )
+  tags                = merge({ "ResourceName" = lower("${var.firewall_name}-pip-prefix") }, var.tags, )
 }
 
 resource "azurerm_public_ip" "fw-pip" {
   for_each            = local.public_ip_map
-  name                = lower("pip-${var.firewall_config.name}-${each.key}")
+  name                = lower("pip-${var.firewall_name}-${each.key}")
   location            = local.location
   resource_group_name = local.resource_group_name
   allocation_method   = "Static"
   sku                 = "Standard"
   public_ip_prefix_id = azurerm_public_ip_prefix.fw-pref.id
-  tags                = merge({ "ResourceName" = lower("pip-${var.firewall_config.name}-${each.key}") }, var.tags, )
+  tags                = merge({ "ResourceName" = lower("pip-${var.firewall_name}-${each.key}") }, var.tags, )
 }
 
 resource "azurerm_public_ip" "fw-mgnt-pip" {
   count               = var.enable_forced_tunneling ? 1 : 0
-  name                = lower("pip-${var.firewall_config.name}-fw-mgnt")
+  name                = lower("pip-${var.firewall_name}-fw-mgnt")
   location            = local.location
   resource_group_name = local.resource_group_name
   allocation_method   = "Static"
   sku                 = "Standard"
-  tags                = merge({ "ResourceName" = lower("pip-${var.firewall_config.name}-fw-mgnt") }, var.tags, )
+  tags                = merge({ "ResourceName" = lower("pip-${var.firewall_name}-fw-mgnt") }, var.tags, )
 }
 
 #-----------------
 # Azure Firewall 
 #-----------------
 resource "azurerm_firewall" "fw" {
-  name                = format("%s", var.firewall_config.name)
+  name                = format("%s", var.firewall_name)
   resource_group_name = local.resource_group_name
   location            = local.location
-  sku_name            = var.firewall_config.sku_name
-  sku_tier            = var.firewall_config.sku_tier
+  sku_name            = var.firewall_sku
+  sku_tier            = var.firewall_tier
   # firewall_policy_id  = var.firewall_policy != null ? azurerm_firewall_policy.fw-policy.0.id : null
-  dns_servers       = var.firewall_config.dns_servers
-  private_ip_ranges = var.firewall_config.private_ip_ranges
   threat_intel_mode = lookup(var.firewall_config, "threat_intel_mode", "Alert")
-  zones             = var.firewall_config.zones
-  tags              = merge({ "ResourceName" = format("%s", var.firewall_config.name) }, var.tags, )
+  tags              = merge({ "ResourceName" = format("%s", var.firewall_name) }, var.tags, )
 
   dynamic "ip_configuration" {
     for_each = local.public_ip_map
@@ -129,7 +126,7 @@ resource "azurerm_firewall" "fw" {
   dynamic "management_ip_configuration" {
     for_each = var.enable_forced_tunneling ? [1] : []
     content {
-      name                 = lower("${var.firewall_config.name}-forced-tunnel")
+      name                 = lower("${var.firewall_name}-forced-tunnel")
       subnet_id            = azurerm_subnet.fw-mgnt-snet.0.id
       public_ip_address_id = azurerm_public_ip.fw-mgnt-pip.0.id
     }
@@ -193,7 +190,7 @@ resource "azurerm_firewall_network_rule_collection" "fw" {
 
 resource "azurerm_firewall_nat_rule_collection" "fw" {
   for_each            = local.fw_nat_rules
-  name                = lower(format("fw-nat-rule-%s-${var.firewall_config.name}-${local.location}", each.key))
+  name                = lower(format("fw-nat-rule-%s-${var.firewall_name}-${local.location}", each.key))
   azure_firewall_name = azurerm_firewall.fw.name
   resource_group_name = local.resource_group_name
   priority            = 100 * (each.value.idx + 1)
@@ -216,7 +213,7 @@ resource "azurerm_firewall_nat_rule_collection" "fw" {
 #---------------------------------------------------------------
 resource "azurerm_firewall_policy" "fw-policy" {
   count                    = var.firewall_policy != null ? 1 : 0
-  name                     = lower(format("fw-policy-%s", var.firewall_config.name))
+  name                     = lower(format("fw-policy-%s", var.firewall_name))
   resource_group_name      = local.resource_group_name
   location                 = local.location
   sku                      = var.firewall_policy.sku
@@ -245,7 +242,7 @@ resource "azurerm_firewall_policy" "fw-policy" {
 #---------------------------------------------------------------
 resource "azurerm_monitor_diagnostic_setting" "fw-mgnt-pip-diag" {
   count                      = var.log_analytics_workspace_id != null || var.storage_account_name != null && var.enable_forced_tunneling ? 1 : 0
-  name                       = lower("fw-${var.firewall_config.name}-mgnt-pip-diag")
+  name                       = lower("fw-${var.firewall_name}-mgnt-pip-diag")
   target_resource_id         = azurerm_public_ip.fw-mgnt-pip.0.id
   storage_account_id         = var.storage_account_name != null ? data.azurerm_storage_account.storeacc.0.id : null
   log_analytics_workspace_id = var.log_analytics_workspace_id
@@ -279,7 +276,7 @@ resource "azurerm_monitor_diagnostic_setting" "fw-mgnt-pip-diag" {
 
 resource "azurerm_monitor_diagnostic_setting" "fw-pip-diag" {
   for_each                   = { for pip in var.public_ip_names : pip => true if var.log_analytics_workspace_id != null || var.storage_account_name != null }
-  name                       = lower("fw-${var.firewall_config.name}-${each.key}-pip-diag")
+  name                       = lower("fw-${var.firewall_name}-${each.key}-pip-diag")
   target_resource_id         = azurerm_public_ip.fw-pip[each.key].id
   storage_account_id         = var.storage_account_name != null ? data.azurerm_storage_account.storeacc.0.id : null
   log_analytics_workspace_id = var.log_analytics_workspace_id
@@ -313,7 +310,7 @@ resource "azurerm_monitor_diagnostic_setting" "fw-pip-diag" {
 
 resource "azurerm_monitor_diagnostic_setting" "fw-diag" {
   count                      = var.log_analytics_workspace_id != null || var.storage_account_name != null ? 1 : 0
-  name                       = lower("${var.firewall_config.name}-diag")
+  name                       = lower("${var.firewall_name}-diag")
   target_resource_id         = azurerm_firewall.fw.id
   storage_account_id         = var.storage_account_name != null ? data.azurerm_storage_account.storeacc.0.id : null
   log_analytics_workspace_id = var.log_analytics_workspace_id
