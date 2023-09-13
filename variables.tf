@@ -13,6 +13,16 @@ variable "firewall_name" {
   default     = ""
 }
 
+variable "firewall_sku" {
+  description = "sku"
+  default     = ""
+}
+
+variable "firewall_tier" {
+  description = "tier"
+  default     = ""
+}
+
 variable "location" {
   description = "The location/region to keep all your network resources. To get the list of all locations with table format from azure cli, run 'az account list-locations -o table'"
   default     = ""
